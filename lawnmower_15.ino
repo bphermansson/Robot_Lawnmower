@@ -76,13 +76,20 @@ int speedPinB = 11; // Needs to be a PWM pin to be able to control motor speed
 #define ledstuck A1
 
 //Measuring Current Using ACS712
-
 const int analogIn = A0;
 int mVperAmp = 185; // use 100 for 20A Module and 66 for 30A Module
 int RawValue= 0;
 int ACSoffset = 2500; 
-double Voltage = 0;
+double Voltage = 0; // Input value from current sensor
 double Amps = 0;
+
+// Battery voltage meter
+// A resistor divider connected to the battery and ground. 
+#define lowbattled D13
+#define voltsens A4   // Mid point of divider connected to input A4. 
+float vPow = 4.7; // Voltage at the Arduinos Vcc and Vref. 
+float r1 = 1000000;  // "Top" resistor, 1Mohm.
+float r2 = 470000;   // "Bottom" resistor (to ground), 470 kohm. 
 
 #define cutmotor 5
 #define currentsens A0
@@ -107,8 +114,7 @@ void setup() {
   digitalWrite(ledstuck, HIGH);
   delay(500);
   digitalWrite(ledstuck, LOW);
-  
-   
+     
   //Define L298N Dual H-Bridge Motor Controller Pins
   pinMode(dir1PinA,OUTPUT);
   pinMode(dir2PinA,OUTPUT);
@@ -145,6 +151,23 @@ void setup() {
   digitalWrite(cutmotor, LOW);
   delay(500);
   digitalWrite(cutmotor, HIGH);
+
+  pinMode(lowbattled, OUTPUT);
+  pinMode(voltsens, INPUT);
+  // Check battery monitor
+  Serial.println("--------------------");
+  Serial.println("DC VOLTMETER");
+  Serial.print("Maximum Voltage: ");
+  Serial.print((int)(vPow / (r2 / (r1 + r2))));
+  Serial.println("V");
+  // Read AD and convert value
+  float v = (analogRead(0) * vPow) / 1024.0;
+  float v2 = v / (r2 / (r1 + r2));
+  Serial.print("Battery voltage: ");
+  Serial.print(v2);
+  Serial.println(" volt.");
+  Serial.println("--------------------");
+  
   Serial.println("Setup done");
 }
 
@@ -166,14 +189,32 @@ void loop() {
   digitalWrite(trigPin, LOW);
   duration = pulseIn(echoPin, HIGH);
   distance = (duration/2) / 29.1;
-  if (distance < 4) {  // This is where the LED On/Off happens
+  if (distance < 10) {  
     // We are close to something
-    digitalWrite(lednear,HIGH); // When the Red condition is met, the Green LED should turn off
-
+    digitalWrite(lednear,HIGH); 
+    // Stop cutter
+    digitalWrite(cutmotor, LOW);
+    // Back off
+    analogWrite(speedPinA, 255); // Full speed 
+    analogWrite(speedPinB, 255);
+    // Backwards
+    digitalWrite(dir1PinA, HIGH);
+    digitalWrite(dir2PinA, LOW);
+    digitalWrite(dir1PinB, HIGH);
+    digitalWrite(dir2PinB, LOW);
+    delay (2000);
+    // Turn right
+    digitalWrite(dir1PinA, LOW);
+    digitalWrite(dir2PinA, HIGH);
+    digitalWrite(dir1PinB, HIGH);
+    digitalWrite(dir2PinB, LOW);    
+    delay (2000);
+    digitalWrite(lednear,LOW); 
 }
   else {
     digitalWrite(lednear,LOW);
   }
+  /*
   if (distance >= 200 || distance <= 0){
     //Serial.println("Out of range");
   }
@@ -181,19 +222,57 @@ void loop() {
     Serial.print(distance);
     Serial.println(" cm");
   }
+  */
 
+  // Measure battery voltage
+  // Read AD and convert value
+  float v = (analogRead(0) * vPow) / 1024.0;
+  float v2 = v / (r2 / (r1 + r2));
+  Serial.print("Battery voltage: ");
+  Serial.print(v2);
+  Serial.println(" volt.");
+  if (v2<10.5) {  // Battery is low
+      // Everything off
+      digitalWrite(cutmotor, LOW);
+      analogWrite(speedPinA, 0); 
+      analogWrite(speedPinB, 0);
+      digitalWrite(ledstuck, LOW);
+      digitalWrite(lednear, LOW);
+      while(1){   // Loop forever
+        // Blink D13 to indicate low power
+        digitalWrite(13, HIGH);   // turn the LED on (HIGH is the voltage level)
+        delay(200);              // wait for a second
+        digitalWrite(13, LOW);    // turn the LED off by making the voltage LOW
+        delay(1500);              // wait for a second
+      }
+  }
+  
+  
   // Measure total current
   RawValue = analogRead(analogIn);
   Voltage = (RawValue / 1023.0) * 5000; // Gets you mV
   Amps = ((Voltage - ACSoffset) / mVperAmp);
-  
+
+  /*
   Serial.print("Raw Value = " ); // shows pre-scaled value 
   Serial.print(RawValue); 
   Serial.print("\t mV = "); // shows the voltage measured 
   Serial.print(Voltage,3); // the '3' after voltage allows you to display 3 digits after decimal point
   Serial.print("\t Amps = "); // shows the voltage measured 
   Serial.println(Amps,3); // the '3' after voltage allows you to display 3 digits after decimal point
+  */
+  double posamps = abs(Amps);
+  Serial.println(posamps,3);
   delay(300); 
+  if (posamps>3) {
+    // The current drawn is to high, the lawnmower is stuck somehow.
+    // Shut everything of and wait for a reset (manual action). 
+    digitalWrite(cutmotor, LOW);
+    analogWrite(speedPinA, 0); 
+    analogWrite(speedPinB, 0);
+    digitalWrite(ledstuck, HIGH);
+    while(1){}
+  }
   
  /*
  Any change on the RC-receiver?
@@ -278,6 +357,7 @@ void loop() {
         analogWrite(speedPinB, 255);
         digitalWrite(dir1PinA, LOW);
         digitalWrite(dir2PinA, HIGH);
+        delay(200);
         digitalWrite(dir1PinB, HIGH);
         digitalWrite(dir2PinB, LOW);
     }
@@ -290,6 +370,7 @@ void loop() {
         analogWrite(speedPinB, 255);
         digitalWrite(dir1PinA, HIGH);
         digitalWrite(dir2PinA, LOW);
+        delay(200);
         digitalWrite(dir1PinB, LOW);
         digitalWrite(dir2PinB, HIGH);    
       
