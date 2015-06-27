@@ -2,19 +2,24 @@
 /* Arduino based robot lawnmower
 ©Patrik Hermansson 2015
 
-Controlled by an RC-transmitter
-Uses a L298-based card for controlling two motors
-Cutting motor controlled by Arduino, a BC547-based Mosfet driver and a IRF540. 
+-Controlled by an RC-transmitter
+-Uses a L298-based card for controlling two driver motors, left and rear.
+-Cutting motor controlled by Arduino, and a relay.
+-Led:s indicating high current drawn, low battery and if robot is near something. 
+-Measures total current drawn with ACS712 current meter.
+-Battery measured by resistor divider and Arduino internal AD-converter. 
+-Measures distance to foreign objects with HC-SR04 sensor, 
 
-
-Uses a HC-SR04 distance sensor to avoid objects in the way. 
+ 
 Two electrical motors are used for moving and turning, controlled by a L298N-based driver
 (code inspired by http://www.instructables.com/id/Arduino-Modules-L298N-Dual-H-Bridge-Motor-Controll/?ALLSTEPS)
 
+Also inspired by http://rcarduino.blogspot.co.uk/2012/01/how-to-read-rc-receiver-with.html
 
-Also inspired by TemperatureWebPanel (in Examples/Bridge)
-and
-http://rcarduino.blogspot.co.uk/2012/01/how-to-read-rc-receiver-with.html
+
+Reminder on Git:
+git commit lawnmower_15.ino
+git push origin master
 */
 
 /*
@@ -149,7 +154,7 @@ void setup() {
   Serial.println("Spin up cut motor");
   pinMode(cutmotor, OUTPUT);
   digitalWrite(cutmotor, LOW);
-  delay(500);
+  delay(2000);
   digitalWrite(cutmotor, HIGH);
 
   pinMode(lowbattled, OUTPUT);
@@ -184,7 +189,7 @@ void loop() {
   digitalWrite(trigPin, LOW);  // Added this line
   delayMicroseconds(2); // Added this line
   digitalWrite(trigPin, HIGH);
-//  delayMicroseconds(1000); - Removed this line
+  //  delayMicroseconds(1000); - Removed this line
   delayMicroseconds(10); // Added this line
   digitalWrite(trigPin, LOW);
   duration = pulseIn(echoPin, HIGH);
@@ -239,7 +244,7 @@ void loop() {
       digitalWrite(ledstuck, LOW);
       digitalWrite(lednear, LOW);
       while(1){   // Loop forever
-        // Blink D13 to indicate low power
+        // Blink D13 to indicate low power (short pulses to save power)
         digitalWrite(13, HIGH);   // turn the LED on (HIGH is the voltage level)
         delay(200);              // wait for a second
         digitalWrite(13, LOW);    // turn the LED off by making the voltage LOW
